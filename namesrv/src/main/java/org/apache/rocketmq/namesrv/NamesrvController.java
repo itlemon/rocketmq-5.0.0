@@ -101,8 +101,13 @@ public class NamesrvController {
     }
 
     public boolean initialize() {
+        // 第一步：加载KV配置，主要流程是从本地文件中加载KV配置到内存中
+        // 默认加载路径是：${user.home}/namesrv/kvConfig.json
         loadConfig();
+
+        // 第二步：构建网络通讯组件：NettyRemotingServer对象、NettyRemotingClient对象
         initiateNetworkComponents();
+
         initiateThreadExecutors();
         registerProcessor();
         startScheduleService();
