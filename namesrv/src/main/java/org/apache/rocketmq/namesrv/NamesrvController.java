@@ -108,10 +108,32 @@ public class NamesrvController {
         // 第二步：构建网络通讯组件：NettyRemotingServer对象、NettyRemotingClient对象
         initiateNetworkComponents();
 
+        // 第三步：初始化线程池，这里面初始化了两个线程池，
+        // 一个用于处理Broker相关请求的线程池，一个用于处理客户端（生产者、消费者）相关请求的线程池
         initiateThreadExecutors();
+
+        // 第四步：注册处理器，用于处理不同类型的请求
+        // ClusterTestRequestProcessor用于处理测试请求
+        // ClientRequestProcessor用于处理客户端请求，目前包含根据Topic获取路由信息
+        // DefaultRequestProcessor用于处理其余NameServer的请求：比如KV配置管理、Broker注册、Broker心跳、更新/查询Namesrv配置
         registerProcessor();
+
+        // 第五步：注册三个定时任务线程池
+        // 1.NameServer定时默认每隔5秒钟（可通过配置文件修改）扫描一次Broker列表，移除已经处于非激活状态的Broker
+        // 2.NameServer定时每隔10分钟（可通过配置文件修改）打印一次KV的配置信息
+        // 3.NameServer定时每秒钟打印水位信息，将clientRequestThreadPoolQueue和defaultThreadPoolQueue
+        // 两个队列中的任务数和第一个未执行任务的延迟时间打印出来（当前时间戳减去任务的创建时间戳）
         startScheduleService();
+
+        // 第六步：配置SSL（Secure Sockets Layer 安全套接字协议）协议，这里支持三种模式：disabled、permissive、enforcing
+        // disabled:不支持SSL，所有SSL协议的挥手请求都将被拒绝，连接被关闭
+        // permissive:SSL是可以选的，服务端可以处理客户端的SSL的连接或者非SSL连接，该选项是默认值
+        // enforcing:SSL是必需的，非SSL的连接都将被拒绝
         initiateSslContext();
+
+        // 第七步：添加ZoneRouteRPCHook，支持云特性：多zone部署和管理
+        // ZoneRouteRPCHook内部的主要逻辑是在请求（GET_ROUTEINFO_BY_TOPIC）的时候，
+        // 通过zone配置，可以实现路由信息的过滤，然后返回给客户端，实现多zone部署和管理
         initiateRpcHooks();
         return true;
     }
@@ -121,12 +143,16 @@ public class NamesrvController {
     }
 
     private void startScheduleService() {
+        // 1.NameServer定时默认每隔5秒钟（可通过配置文件修改）扫描一次Broker列表，移除已经处于非激活状态的Broker
         this.scanExecutorService.scheduleAtFixedRate(NamesrvController.this.routeInfoManager::scanNotActiveBroker,
             5, this.namesrvConfig.getScanNotActiveBrokerInterval(), TimeUnit.MILLISECONDS);
 
+        // 2.NameServer定时每隔10分钟（可通过配置文件修改）打印一次KV的配置信息
         this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.kvConfigManager::printAllPeriodically,
             1, 10, TimeUnit.MINUTES);
 
+        // 3.NameServer定时每秒钟打印水位信息，将clientRequestThreadPoolQueue和defaultThreadPoolQueue
+        // 两个队列中的任务数和第一个未执行任务的延迟时间打印出来（当前时间戳减去任务的创建时间戳）
         this.scheduledExecutorService.scheduleAtFixedRate(() -> {
             try {
                 NamesrvController.this.printWaterMark();
@@ -196,7 +222,7 @@ public class NamesrvController {
         }
     }
 
-    private void printWaterMark() {
+    private void  printWaterMark() {
         WATER_MARK_LOG.info("[WATERMARK] ClientQueueSize:{} ClientQueueSlowTime:{} " + "DefaultQueueSize:{} DefaultQueueSlowTime:{}", this.clientRequestThreadPoolQueue.size(), headSlowTimeMills(this.clientRequestThreadPoolQueue), this.defaultThreadPoolQueue.size(), headSlowTimeMills(this.defaultThreadPoolQueue));
     }
 

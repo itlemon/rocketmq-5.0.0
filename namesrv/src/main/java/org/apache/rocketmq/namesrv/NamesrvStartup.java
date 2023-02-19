@@ -46,25 +46,29 @@ import org.slf4j.LoggerFactory;
 public class NamesrvStartup {
 
     private static InternalLogger log;
+
+    /**
+     * 解析命令行参数和配置文件参数，装配到该属性中进行存储，它存储全部的配置k-v，包含-c指定的启动文件和-p打印出来的变量
+     */
     private static Properties properties = null;
 
     /**
-     * NameServer配置项
+     * NameServer配置项：从properties中解析出来的全部NameServer配置
      */
     private static NamesrvConfig namesrvConfig = null;
 
     /**
-     * nettyServer的配置项
+     * NettyServer的配置项：从properties中解析出来的全部NameServer RPC服务端启动配置
      */
     private static NettyServerConfig nettyServerConfig = null;
 
     /**
-     * nettyClient的配置项
+     * NettyClient的配置项：从properties中解析出来的全部NameServer RPC客户端启动配置
      */
     private static NettyClientConfig nettyClientConfig = null;
 
     /**
-     * DledgerController的配置项
+     * DledgerController的配置项：从properties中解析出来的全部Controller需要的启动配置
      */
     private static ControllerConfig controllerConfig = null;
 
