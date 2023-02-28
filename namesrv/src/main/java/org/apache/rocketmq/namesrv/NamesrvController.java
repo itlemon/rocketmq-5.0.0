@@ -109,7 +109,7 @@ public class NamesrvController {
         initiateNetworkComponents();
 
         // 第三步：初始化线程池，这里面初始化了两个线程池，
-        // 一个用于处理Broker相关请求的线程池，一个用于处理客户端（生产者、消费者）相关请求的线程池
+        // 一个(defaultExecutor)用于处理Broker相关请求的线程池，一个(clientRequestExecutor)用于处理客户端（生产者、消费者）相关请求的线程池
         initiateThreadExecutors();
 
         // 第四步：注册处理器，用于处理不同类型的请求

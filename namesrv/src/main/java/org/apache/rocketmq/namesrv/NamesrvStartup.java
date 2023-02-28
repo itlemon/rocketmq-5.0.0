@@ -259,6 +259,7 @@ public class NamesrvStartup {
         }));
 
         // 第三步：启动controller
+        // 启动remotingServer、remotingClient、fileWatchService、routeInfoManager服务
         controller.start();
 
         return controller;
