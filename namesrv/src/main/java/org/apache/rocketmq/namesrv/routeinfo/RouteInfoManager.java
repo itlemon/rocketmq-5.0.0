@@ -70,17 +70,59 @@ import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
 public class RouteInfoManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
+
+    /**
+     * 默认的broker通道过期时间，2min
+     */
     private final static long DEFAULT_BROKER_CHANNEL_EXPIRED_TIME = 1000 * 60 * 2;
+
+    /**
+     * 可重入的读写锁，路由表中的存在双Map的嵌套，对于内部的Map，使用的是非线程安全的HashMap，所以需要锁来控制
+     */
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private final Map<String/* topic */, Map<String, QueueData>> topicQueueTable;
+
+    /**
+     * 该容器存储的是topic与该topic相关的broker的Queue的数据
+     * 例如某个RocketMQ集群是按照2m-2s部署的，那么这个集群上所有的topic，它对应的Map<String, QueueData>，在集群正常的情况下，
+     * 都将有两条数据，键分别是broker-a、broker-b，QueueData记录topic在broker上的分区数等信息
+     */
+    private final Map<String/* topic */, Map<String/* brokerName */, QueueData>> topicQueueTable;
+
+    /**
+     * 该容器存储的是每个brokerName与broker的关系，例如某个RocketMQ集群是按照2m-2s部署的，那么有两组broker，brokerName分别
+     * 是：broker-a、broker-b，这两组broker各有一个主和从，主的ID是0，从的ID是1，那么BrokerData里将记录集群名、主从broker实例
+     * 的地址，zone名称等
+     */
     private final Map<String/* brokerName */, BrokerData> brokerAddrTable;
+
+    /**
+     * 该容器存储的是集群名与brokerName的关系，也就是集群与Broker名称的映射表，可以方便知道一个集群下有哪些Broker
+     */
     private final Map<String/* clusterName */, Set<String/* brokerName */>> clusterAddrTable;
+
+    /**
+     * 该容器存储的是每个broker实例的存活信息，NameServer每次收到心跳后会将此引用指向最新的表
+     */
     private final Map<BrokerAddrInfo/* brokerAddr */, BrokerLiveInfo> brokerLiveTable;
+
+    /**
+     * 该容器存储的是Broker与Filter Server之间的关系
+     */
     private final Map<BrokerAddrInfo/* brokerAddr */, List<String>/* Filter Server */> filterServerTable;
+
+    /**
+     * 该容器存储的是topic与该topic相关的broker中的Queue的映射信息
+     */
     private final Map<String/* topic */, Map<String/*brokerName*/, TopicQueueMappingInfo>> topicQueueMappingInfoTable;
 
+    /**
+     * 批量注销brokers的服务，它可以提高broker下线进程
+     */
     private final BatchUnregistrationService unRegisterService;
 
+    /**
+     * 这里持有namesrvController对象，方便部分动作委托给namesrvController
+     */
     private final NamesrvController namesrvController;
     private final NamesrvConfig namesrvConfig;
 
