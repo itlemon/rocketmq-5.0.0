@@ -72,7 +72,7 @@ public class RouteInfoManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
 
     /**
-     * 默认的broker通道过期时间，2min
+     * 默认的broker心跳过期时间，2min
      */
     private final static long DEFAULT_BROKER_CHANNEL_EXPIRED_TIME = 1000 * 60 * 2;
 
