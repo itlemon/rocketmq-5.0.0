@@ -27,6 +27,7 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.common.BrokerConfig;
 import org.apache.rocketmq.common.MQVersion;
 import org.apache.rocketmq.common.MixAll;
@@ -105,7 +106,15 @@ public class BrokerStartup {
 
             nettyClientConfig.setUseTLS(Boolean.parseBoolean(System.getProperty(TLS_ENABLE,
                 String.valueOf(TlsSystemConfig.tlsMode == TlsMode.ENFORCING))));
-            nettyServerConfig.setListenPort(10911);
+
+            // 这里默认启动监听的端口是10911，其实可以在上面的命令行选项中加入一个自定义的选型，并设置一个端口选项
+            // 这样就可以在启动的时候通过命令行传入监听端口
+            String listenPort;
+            if (commandLine.hasOption('l') && (StringUtils.isNumeric(listenPort = commandLine.getOptionValue('l')))) {
+                nettyServerConfig.setListenPort(Integer.parseInt(listenPort));
+            } else {
+                nettyServerConfig.setListenPort(10911);
+            }
             final MessageStoreConfig messageStoreConfig = new MessageStoreConfig();
 
             if (BrokerRole.SLAVE == messageStoreConfig.getBrokerRole()) {
@@ -275,6 +284,11 @@ public class BrokerStartup {
         options.addOption(opt);
 
         opt = new Option("m", "printImportantConfig", false, "Print important config item");
+        opt.setRequired(false);
+        options.addOption(opt);
+
+        // 新增监听端口命令行选项，有值，非必选参数，用于自定义broker启动端口
+        opt = new Option("l", "listenPort", true, "Broker custom listening port");
         opt.setRequired(false);
         options.addOption(opt);
 
