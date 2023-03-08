@@ -146,8 +146,7 @@ public class NamesrvStartup {
         nettyServerConfig = new NettyServerConfig();
         nettyClientConfig = new NettyClientConfig();
 
-        // 这里默认启动监听的端口是9876，其实可以在上面的命令行选项中加入一个自定义的选型，并设置一个端口选项
-        // 这样就可以在启动的时候通过命令行传入监听端口
+        // 这里默认启动监听的端口是9876
         nettyServerConfig.setListenPort(9876);
         controllerConfig = new ControllerConfig();
 
