@@ -1525,18 +1525,24 @@ public class BrokerController {
             this.registerBrokerAll(true, false, true);
         }
 
+        // 注册一个定时任务，默认每隔30s向NameServer发送元数据信息，发送元数据信息的间隔可以设置10s到60s
         scheduledFutures.add(this.scheduledExecutorService.scheduleAtFixedRate(new AbstractBrokerRunnable(this.getBrokerIdentity()) {
             @Override
             public void run2() {
                 try {
+                    // broker支持延迟注册到NameServer，如果还没到时间，那么将不会去注册
                     if (System.currentTimeMillis() < shouldStartTime) {
                         BrokerController.LOG.info("Register to namesrv after {}", shouldStartTime);
                         return;
                     }
+
+                    // 如果broker是独立的，那么无需注册到NameServer
                     if (isIsolated) {
                         BrokerController.LOG.info("Skip register for broker is isolated");
                         return;
                     }
+
+                    // 注册逻辑在registerBrokerAll方法中
                     BrokerController.this.registerBrokerAll(true, false, brokerConfig.isForceRegister());
                 } catch (Throwable e) {
                     BrokerController.LOG.error("registerBrokerAll Exception", e);
@@ -1629,17 +1635,28 @@ public class BrokerController {
         doRegisterBrokerAll(true, false, topicConfigSerializeWrapper);
     }
 
+    /**
+     * 注册Broker元信息到NameServer列表中
+     *
+     * @param checkOrderConfig 是否检查顺序消息配置
+     * @param oneway 是否是单向消息，如果是，那么就不需要知道注册结果，不同于同步和异步消息
+     * @param forceRegister 是否是强制注册
+     */
     public synchronized void registerBrokerAll(final boolean checkOrderConfig, boolean oneway, boolean forceRegister) {
 
+        // 创建一个TopicConfig和TopicQueueMapping相关的包装类对象
         TopicConfigAndMappingSerializeWrapper topicConfigWrapper = new TopicConfigAndMappingSerializeWrapper();
 
+        // 包装版本对象和系统自带的一些Topic配置信息，具体有哪些Topic，可以从TopicValidator类中看到
         topicConfigWrapper.setDataVersion(this.getTopicConfigManager().getDataVersion());
         topicConfigWrapper.setTopicConfigTable(this.getTopicConfigManager().getTopicConfigTable());
 
+        // 包装TopicQueueMapping相关的映射信息
         topicConfigWrapper.setTopicQueueMappingInfoMap(this.getTopicQueueMappingManager().getTopicQueueMappingTable().entrySet().stream().map(
             entry -> new AbstractMap.SimpleImmutableEntry<>(entry.getKey(), TopicQueueMappingDetail.cloneAsMappingInfo(entry.getValue()))
         ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
 
+        // 如果Broker只有读权限或者写权限，那么需要将Topic的权限设置为和Broker相同
         if (!PermName.isWriteable(this.getBrokerConfig().getBrokerPermission())
             || !PermName.isReadable(this.getBrokerConfig().getBrokerPermission())) {
             ConcurrentHashMap<String, TopicConfig> topicConfigTable = new ConcurrentHashMap<>();
@@ -1652,12 +1669,16 @@ public class BrokerController {
             topicConfigWrapper.setTopicConfigTable(topicConfigTable);
         }
 
+        // forceRegister默认情况下是true，如果为false，那么就需要调用needRegister来判断是否需要注册
+        // needRegister内部逻辑也很简单，就是去请求所有的NameServer，判断NameServer存储的Broker信息
+        // 是否和当前的Broker版本信息是否一致，如果是一致的，那么就不需要注册
         if (forceRegister || needRegister(this.brokerConfig.getBrokerClusterName(),
             this.getBrokerAddr(),
             this.brokerConfig.getBrokerName(),
             this.brokerConfig.getBrokerId(),
             this.brokerConfig.getRegisterBrokerTimeoutMills(),
             this.brokerConfig.isInBrokerContainer())) {
+            // 注册Broker信息到NameServer的核心逻辑
             doRegisterBrokerAll(checkOrderConfig, oneway, topicConfigWrapper);
         }
     }
