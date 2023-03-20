@@ -1686,10 +1686,13 @@ public class BrokerController {
     protected void doRegisterBrokerAll(boolean checkOrderConfig, boolean oneway,
         TopicConfigSerializeWrapper topicConfigWrapper) {
 
+        // 如果当前Broker正在关闭状态，那么是不需要再去注册了
         if (shutdown) {
             BrokerController.LOG.info("BrokerController#doResterBrokerAll: broker has shutdown, no need to register any more.");
             return;
         }
+
+        // 注册Broker信息到NameServer的核心逻辑
         List<RegisterBrokerResult> registerBrokerResultList = this.brokerOuterAPI.registerBrokerAll(
             this.brokerConfig.getBrokerClusterName(),
             this.getBrokerAddr(),
@@ -1705,6 +1708,7 @@ public class BrokerController {
             this.brokerConfig.isEnableSlaveActingMaster() ? this.brokerConfig.getBrokerNotActiveTimeoutMillis() : null,
             this.getBrokerIdentity());
 
+        // 处理注册结果：更新HA Server地址，设置MasterBroker地址，更新顺序消息配置
         handleRegisterBrokerResult(registerBrokerResultList, checkOrderConfig);
     }
 

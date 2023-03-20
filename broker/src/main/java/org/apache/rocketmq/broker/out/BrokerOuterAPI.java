@@ -440,11 +440,15 @@ public class BrokerOuterAPI {
             final Long heartbeatTimeoutMillis,
             final BrokerIdentity brokerIdentity) {
 
+        // 封装注册结果的容器
         final List<RegisterBrokerResult> registerBrokerResultList = new CopyOnWriteArrayList<>();
+
+        // 获取NameServer列表
         List<String> nameServerAddressList = this.remotingClient.getAvailableNameSrvList();
         if (nameServerAddressList != null && nameServerAddressList.size() > 0) {
-
+            // 构建注册Broker信息的请求头对象
             final RegisterBrokerRequestHeader requestHeader = new RegisterBrokerRequestHeader();
+            // 将Broker的主要元信息存储到请求头中
             requestHeader.setBrokerAddr(brokerAddr);
             requestHeader.setBrokerId(brokerId);
             requestHeader.setBrokerName(brokerName);
@@ -452,23 +456,37 @@ public class BrokerOuterAPI {
             requestHeader.setHaServerAddr(haServerAddr);
             requestHeader.setEnableActingMaster(enableActingMaster);
             requestHeader.setCompressed(false);
+            // 该参数要特殊说明一下：只有当enableActingMaster为true的时候才生效（在container模式下），这个心跳超时默认时间是10s，
             if (heartbeatTimeoutMillis != null) {
                 requestHeader.setHeartbeatTimeoutMillis(heartbeatTimeoutMillis);
             }
 
+            // 构建注册Broker信息的请求体
             RegisterBrokerBody requestBody = new RegisterBrokerBody();
+
+            // 将topic配置信息及过滤器服务信息数据封装到请求体中
             requestBody.setTopicConfigSerializeWrapper(TopicConfigAndMappingSerializeWrapper.from(topicConfigWrapper));
             requestBody.setFilterServerList(filterServerList);
+
+            // 将请求体进行编码（是否进行gzip压缩，默认为false）
             final byte[] body = requestBody.encode(compressed);
             final int bodyCrc32 = UtilAll.crc32(body);
             requestHeader.setBodyCrc32(bodyCrc32);
+
+            // 创建计数器，用来计数完成注册的数量
             final CountDownLatch countDownLatch = new CountDownLatch(nameServerAddressList.size());
+
+            // 遍历所有的NameServer地址，分别向每一个NameServer进行注册
             for (final String namesrvAddr : nameServerAddressList) {
                 brokerOuterExecutor.execute(new AbstractBrokerRunnable(brokerIdentity) {
                     @Override
                     public void run2() {
                         try {
+
+                            // 注册Broker，底层调用netty客户端发送请求到NameServer
                             RegisterBrokerResult result = registerBroker(namesrvAddr, oneway, timeoutMills, requestHeader, body);
+
+                            // 将注册结果添加到结果列表中
                             if (result != null) {
                                 registerBrokerResultList.add(result);
                             }
@@ -484,6 +502,7 @@ public class BrokerOuterAPI {
             }
 
             try {
+                // 完成所有注册的默认超时时间是24s，如果在24s内没有完成注册，那么就打印该日志
                 if (!countDownLatch.await(timeoutMills, TimeUnit.MILLISECONDS)) {
                     LOGGER.warn("Registration to one or more name servers does NOT complete within deadline. Timeout threshold: {}ms", timeoutMills);
                 }
@@ -502,9 +521,12 @@ public class BrokerOuterAPI {
             final byte[] body
     ) throws RemotingCommandException, MQBrokerException, RemotingConnectException, RemotingSendRequestException, RemotingTimeoutException,
             InterruptedException {
+
+        // 根据请求码RequestCode.REGISTER_BROKER获取注册Broker信息的远程连接请求对象
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.REGISTER_BROKER, requestHeader);
         request.setBody(body);
 
+        // 如果是单向消息，也就是不管注册结果如何，它调用invokeOneway方法来进行注册
         if (oneway) {
             try {
                 this.remotingClient.invokeOneway(namesrvAddr, request, timeoutMills);
@@ -514,10 +536,12 @@ public class BrokerOuterAPI {
             return null;
         }
 
+        // 同步注册，也就是阻塞等待注册结果
         RemotingCommand response = this.remotingClient.invokeSync(namesrvAddr, request, timeoutMills);
         assert response != null;
         switch (response.getCode()) {
             case ResponseCode.SUCCESS: {
+                // 解析注册结果
                 RegisterBrokerResponseHeader responseHeader =
                         (RegisterBrokerResponseHeader) response.decodeCommandCustomHeader(RegisterBrokerResponseHeader.class);
                 RegisterBrokerResult result = new RegisterBrokerResult();
